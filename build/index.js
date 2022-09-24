@@ -4,17 +4,23 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
-const loginRoutes_1 = __importDefault(require("./routes/loginRoutes"));
+const userRoutes_1 = __importDefault(require("./routes/userRoutes"));
+const todoRoutes_1 = __importDefault(require("./routes/todoRoutes"));
+const body_parser_1 = __importDefault(require("body-parser"));
+const mongoose_1 = __importDefault(require("mongoose"));
 const app = (0, express_1.default)();
 //body encoder
-app.use(express_1.default.urlencoded({ extended: true }));
-//routes
-app.get("/", (req, res) => {
-    res.send(`
-      <h1>Welcome!</h1>
-      `);
-});
-app.use(loginRoutes_1.default);
-app.listen(5000, () => {
-    console.log("listening on port 5000");
+app.use(body_parser_1.default.json());
+//routers
+app.use("/api/user", userRoutes_1.default);
+app.use("/api/todo", todoRoutes_1.default);
+mongoose_1.default
+    .connect("mongodb+srv://simbolmina:Tcsg-134ATLAS@cluster0.79oxdag.mongodb.net/todo?retryWrites=true&w=majority")
+    .then(() => {
+    app.listen(5000, () => {
+        console.log("DB connection is ok, listening on port 5000");
+    });
+})
+    .catch((err) => {
+    console.log(err);
 });
