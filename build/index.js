@@ -8,7 +8,9 @@ const userRoutes_1 = __importDefault(require("./routes/userRoutes"));
 const todoRoutes_1 = __importDefault(require("./routes/todoRoutes"));
 const body_parser_1 = __importDefault(require("body-parser"));
 const mongoose_1 = __importDefault(require("mongoose"));
+const cors_1 = __importDefault(require("cors"));
 const app = (0, express_1.default)();
+app.use((0, cors_1.default)());
 //body encoder
 app.use(body_parser_1.default.json());
 //routers

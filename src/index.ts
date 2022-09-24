@@ -3,8 +3,11 @@ import loginRouter from "./routes/userRoutes";
 import todoRouter from "./routes/todoRoutes";
 import bodyParser from "body-parser";
 import mongoose from "mongoose";
+import cors from "cors";
 
 const app = express();
+
+app.use(cors());
 
 //body encoder
 app.use(bodyParser.json());

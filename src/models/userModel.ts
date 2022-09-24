@@ -1,16 +1,24 @@
 import mongoose from "mongoose";
+import uniqueValidator from "mongoose-unique-validator";
 
 const Schema = mongoose.Schema;
 
-const usersSchema = new Schema({
-  username: {
+const userSchema = new Schema({
+  name: {
     type: String,
     required: true,
   },
+  email: { type: String, required: true, unique: true },
   password: {
     type: String,
     required: true,
+    minlenght: 4,
   },
+  todos: [{ type: mongoose.Types.ObjectId, ref: "Todo" }],
   role: String,
-  id: Math.random().toString(36).substring(2, 6),
 });
+
+//check if new users email is unique;
+userSchema.plugin(uniqueValidator);
+
+module.exports = mongoose.model("User", userSchema);

@@ -1,41 +1,76 @@
-import { Request, Response } from "express";
+import { Request, Response, NextFunction } from "express";
+const User = require("../models/userModel");
+// import * as User from '../models/userModel'
+import HttpError from "../util/http-error";
 
-const user = {
-  username: "test",
-  password: "test",
-  id: "u1",
+exports.getUsers = async (req: Request, res: Response, next: NextFunction) => {
+  let users;
+  try {
+    users = await User.find({}, "-password -role -__v");
+  } catch (err) {
+    const error = new HttpError("fetching users failed", 500);
+    return next(error);
+  }
+  res.status(200).json({
+    users: users.map((user: any) => user.toObject({ getters: true })),
+  });
 };
 
-// const DUMMY_DATA = [
-//   {
-//     username: "test",
-//     password: "test",
-//     id: "u1",
-//   },
-//   {
-//     username: "test",
-//     password: "test",
-//     id: "u2",
-//   },
-// ];
+//works
+exports.signup = async (req: Request, res: Response, next: NextFunction) => {
+  const { name, email, password } = req.body;
 
-exports.signup = (req: Request, res: Response) => {
-  const { username, password } = req.body;
-  console.log(req.body);
-  const newUser = {
-    username,
+  let existingUser;
+
+  try {
+    existingUser = await User.findOne({ email: email });
+  } catch (err) {
+    const error = new HttpError("signup failed, try again later", 500);
+    return next(error);
+  }
+
+  if (existingUser) {
+    const error = new HttpError("user exist already, login instead", 422);
+    return next(error);
+  }
+
+  const newUser = new User({
+    name,
+    email,
     password,
     role: "user",
-    id: Math.random().toString(36).substring(2, 6),
-  };
-  res.status(201).json({ newUser });
+    todos: [],
+  });
+
+  try {
+    await newUser.save();
+  } catch (err) {
+    return next(new HttpError("could not signup, try later", 500));
+  }
+
+  res.status(201).json({ user: newUser.toObject({ getters: true }) });
 };
 
-exports.login = (req: Request, res: Response) => {
-  const { username, password } = req.body;
-  if (username === user.username && password === user.password) {
-    res.status(201).json({ message: "login successful" });
-  } else {
-    res.status(403).json({ message: "Invalid username or password" });
+//works
+exports.login = async (req: Request, res: Response, next: NextFunction) => {
+  const { email, password } = req.body;
+
+  let user;
+
+  try {
+    user = await User.findOne({ email: email });
+  } catch (err) {
+    const error = new HttpError("loggin in failed, try later", 500);
+    return next(error);
   }
+
+  if (!user || user.password !== password) {
+    const error = new HttpError(
+      "could not logging in, check ur credentials or sighnup",
+      401
+    );
+    return next(error);
+  }
+
+  res.status(200).json({ message: "logged in" });
 };

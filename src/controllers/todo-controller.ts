@@ -1,38 +1,25 @@
-import { Request, response, Response } from "express";
+import { Request, Response, NextFunction } from "express";
+import mongoose from "mongoose";
 const Todo = require("../models/todoModel");
+const User = require("../models/userModel");
 import HttpError from "../util/http-error";
 
-let DUMMY_DATA = [
-  {
-    id: "t1",
-    content: "apples",
-    kind: "shop",
-    creator: "u1",
-  },
-  {
-    id: "t2",
-    content: "apples",
-    kind: "shop",
-    creator: "u1",
-  },
-  {
-    id: "t3",
-    content: "apples",
-    kind: "shop",
-    creator: "u2",
-  },
-];
-
 //works
-exports.getAllTodo = async (req: Request, res: Response) => {
-  // const todo = DUMMY_DATA.find((todo) => todo);
+exports.getAllTodo = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
   const todo = await Todo.find();
-
   res.status(200).json({ todo });
 };
 
 //works
-exports.getTodoById = async (req: Request, res: Response, next: any) => {
+exports.getTodoById = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
   const todoId = req.params.tid;
 
   let todo;
@@ -51,7 +38,11 @@ exports.getTodoById = async (req: Request, res: Response, next: any) => {
 };
 
 //works
-exports.getTodoByUserId = async (req: Request, res: Response, next: any) => {
+exports.getTodoByUserId = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
   const userId = req.params.uid;
 
   let todos;
@@ -72,9 +63,13 @@ exports.getTodoByUserId = async (req: Request, res: Response, next: any) => {
   });
 };
 
-//works
-exports.createTodo = async (req: Request, res: Response, next: any) => {
-  const { content, kind, creator, id } = req.body;
+//works++
+exports.createTodo = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  const { content, kind, creator } = req.body;
 
   const newTodo = new Todo({
     content,
@@ -82,17 +77,42 @@ exports.createTodo = async (req: Request, res: Response, next: any) => {
     creator,
   });
 
+  let user;
+
   try {
-    await newTodo.save();
+    user = await User.findById(creator);
   } catch (err) {
-    return next(new HttpError("could not create a new Todo", 500));
+    return next(new HttpError("something went wrong", 500));
+  }
+
+  try {
+    //start session for multiple opoerations. if one of them fails, we cancel all of them
+    const curSession = await mongoose.startSession();
+    curSession.startTransaction();
+    await newTodo.save({ session: curSession });
+    //place id is added to our user
+    user.todos.push(newTodo);
+    //push is mongoose method which allows mongoose establish connection between documents
+    await user.save({ session: curSession });
+    //create/save our modified user.
+    await curSession.commitTransaction();
+  } catch (err) {
+    return next(new HttpError("Creating todo failed, try again", 500));
+  }
+
+  if (!user) {
+    return next(new HttpError("could not find user with provided id", 404));
   }
 
   res.status(201).json({ newTodo });
 };
 
 //works
-exports.updateTodo = async (req: Request, res: Response, next: any) => {
+exports.updateTodo = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
   const todoId = req.params.tid;
   const { content, kind } = req.body;
 
@@ -115,18 +135,32 @@ exports.updateTodo = async (req: Request, res: Response, next: any) => {
   res.status(404).json({ todo: todo.toObject({ getters: true }) });
 };
 
-exports.deleteTodo = async (req: Request, res: Response, next: any) => {
+exports.deleteTodo = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
   const todoId = req.params.tid;
   let todo;
 
   try {
-    todo = await Todo.findById(todoId);
+    todo = await Todo.findById(todoId).populate("creator");
   } catch (err) {
     return next(new HttpError("smth went wrong, Could not delete todo", 500));
   }
 
+  if (!todo) {
+    return next(new HttpError("could not find todo with this id", 404));
+  }
+
   try {
-    await todo.remove();
+    const curSession = await mongoose.startSession();
+    curSession.startTransaction();
+    await todo.remove({ session: curSession });
+    //pull removes the todo from user
+    todo.creator.todos.pull(todo);
+    await todo.creator.save({ session: curSession });
+    await curSession.commitTransaction();
   } catch (err) {
     return next(new HttpError("smth went wrong, could not delete", 500));
   }

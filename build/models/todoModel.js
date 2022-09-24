@@ -15,8 +15,9 @@ const todoSchema = new Schema({
         required: true,
     },
     creator: {
-        type: String,
+        type: mongoose_1.default.Types.ObjectId,
         required: true,
+        ref: "User",
     },
 });
-module.exports = mongoose_1.default.model("TodoModel", todoSchema);
+module.exports = mongoose_1.default.model("Todo", todoSchema);

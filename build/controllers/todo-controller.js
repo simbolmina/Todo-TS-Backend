@@ -12,31 +12,12 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+const mongoose_1 = __importDefault(require("mongoose"));
 const Todo = require("../models/todoModel");
+const User = require("../models/userModel");
 const http_error_1 = __importDefault(require("../util/http-error"));
-let DUMMY_DATA = [
-    {
-        id: "t1",
-        content: "apples",
-        kind: "shop",
-        creator: "u1",
-    },
-    {
-        id: "t2",
-        content: "apples",
-        kind: "shop",
-        creator: "u1",
-    },
-    {
-        id: "t3",
-        content: "apples",
-        kind: "shop",
-        creator: "u2",
-    },
-];
 //works
-exports.getAllTodo = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    // const todo = DUMMY_DATA.find((todo) => todo);
+exports.getAllTodo = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
     const todo = yield Todo.find();
     res.status(200).json({ todo });
 });
@@ -73,19 +54,38 @@ exports.getTodoByUserId = (req, res, next) => __awaiter(void 0, void 0, void 0, 
         todos: todos.map((todo) => todo.toObject({ getters: true })),
     });
 });
-//works
+//works++
 exports.createTodo = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
-    const { content, kind, creator, id } = req.body;
+    const { content, kind, creator } = req.body;
     const newTodo = new Todo({
         content,
         kind,
         creator,
     });
+    let user;
     try {
-        yield newTodo.save();
+        user = yield User.findById(creator);
     }
     catch (err) {
-        return next(new http_error_1.default("could not create a new Todo", 500));
+        return next(new http_error_1.default("something went wrong", 500));
+    }
+    try {
+        //start session for multiple opoerations. if one of them fails, we cancel all of them
+        const curSession = yield mongoose_1.default.startSession();
+        curSession.startTransaction();
+        yield newTodo.save({ session: curSession });
+        //place id is added to our user
+        user.todos.push(newTodo);
+        //push is mongoose method which allows mongoose establish connection between documents
+        yield user.save({ session: curSession });
+        //create/save our modified user.
+        yield curSession.commitTransaction();
+    }
+    catch (err) {
+        return next(new http_error_1.default("Creating todo failed, try again", 500));
+    }
+    if (!user) {
+        return next(new http_error_1.default("could not find user with provided id", 404));
     }
     res.status(201).json({ newTodo });
 });
@@ -114,13 +114,22 @@ exports.deleteTodo = (req, res, next) => __awaiter(void 0, void 0, void 0, funct
     const todoId = req.params.tid;
     let todo;
     try {
-        todo = yield Todo.findById(todoId);
+        todo = yield Todo.findById(todoId).populate("creator");
     }
     catch (err) {
         return next(new http_error_1.default("smth went wrong, Could not delete todo", 500));
     }
+    if (!todo) {
+        return next(new http_error_1.default("could not find todo with this id", 404));
+    }
     try {
-        yield todo.remove();
+        const curSession = yield mongoose_1.default.startSession();
+        curSession.startTransaction();
+        yield todo.remove({ session: curSession });
+        //pull removes the todo from user
+        todo.creator.todos.pull(todo);
+        yield todo.creator.save({ session: curSession });
+        yield curSession.commitTransaction();
     }
     catch (err) {
         return next(new http_error_1.default("smth went wrong, could not delete", 500));

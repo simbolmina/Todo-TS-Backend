@@ -1,6 +1,6 @@
 export default class HttpError extends Error {
   constructor(public message: string, public errorCode: number) {
-    super(message); //add a message property;
+    super(message, errorCode); //add a message property;
   }
 }
 

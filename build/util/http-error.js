@@ -2,7 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 class HttpError extends Error {
     constructor(message, errorCode) {
-        super(message); //add a message property;
+        super(message, errorCode); //add a message property;
         this.message = message;
         this.errorCode = errorCode;
     }
